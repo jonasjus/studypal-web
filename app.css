@@ -446,6 +446,20 @@ input:focus, select.input:focus, textarea:focus { border-color: var(--text); out
 .choice input { margin-top: 3px; accent-color: var(--accent); }
 .choice b { display: block; }
 .choice small { color: var(--muted); }
+/* The study wheel in "Start studying". */
+.wheel { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.wheel-stage { position: relative; width: 180px; height: 180px; flex: none; }
+.wheel-disc { width: 100%; height: 100%; transition: transform 3.6s cubic-bezier(.12, .7, .15, 1); }
+.wheel-pointer { position: absolute; top: -6px; left: 50%; width: 20px; height: 16px; transform: translateX(-50%); z-index: 1; fill: var(--danger); }
+.wheel-rim { fill: var(--text); }
+.wheel-hub { fill: var(--surface); stroke: var(--text); stroke-width: 3; }
+.wedge path { fill: var(--surface); stroke: var(--text); stroke-width: 1; }
+.wedge.alt path { fill: var(--accent-soft); }
+.wedge text { font: 700 19px var(--figures); fill: var(--text); }
+.wheel-side { flex: 1; min-width: 150px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.wheel-result { margin: 0; color: var(--muted); }
+.wheel-result b { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .wheel-disc { transition-duration: .4s; } }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .seg label { padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--border); }
 .seg label:last-child { border-right: 0; }
