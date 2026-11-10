@@ -285,6 +285,7 @@ function renderOverview(d) {
       ${done}
     </section>
     <aside class="stack">
+      ${plantPanel(d.overall)}
       <div class="panel">
         <div class="section-head"><h2>Deadlines</h2><button class="btn small ghost" data-act="add-deadline">+ Add</button></div>
         ${d.deadlines.length ? `<ul class="list">${d.deadlines.map((x) => deadlineRow(x)).join("")}</ul>` : '<p class="empty-small">Nothing due. Nice.</p>'}
@@ -1091,6 +1092,8 @@ async function loadSidebar() {
     sideItems = { courses: activeSubjects(courses), projects: projects.filter((p) => !p.done) };
   } catch (e) { /* keep what's shown */ }
   renderSidebar();
+  loadBadges();
+  loadTodoToday();
 }
 
 function sideLink({ act, id, color, badge, label, sub, active }) {
@@ -1110,6 +1113,7 @@ function renderSidebar() {
   $("#side-nav").innerHTML = `
     <div class="side-top"><button class="side-item${v.name === "overview" ? " active" : ""}" data-go="overview" title="Overview">
       <span class="side-badge plain">${ICONS.home}</span><span class="side-text"><span class="side-label">Overview</span></span></button></div>
+    ${sideExtras(v)}
     ${head("Subjects", "add-course", "a subject")}
     ${courses.length ? courses.map((c) => sideLink({ act: "open-subject", id: c.id, color: cc(c.color), badge: (c.code || c.name).slice(0, 3),
         label: `${c.code} ${c.name}`.trim(), sub: c.exam_label ? `Exam ${c.exam_label}` : "", active: c.id === courseId })).join("")
@@ -1468,7 +1472,7 @@ async function settingsForm() {
       ...aiFields(g),
     ],
     extra: `<button type="button" class="btn left" data-act="export">Save a backup…</button>`,
-    intro: `<span class="faint" style="font-size:.75rem">Your data is stored in ${esc(where)}</span>`,
+    intro: `<span class="faint" style="font-size:.75rem">StudyPal ${esc(s.version)} · Your data is stored in ${esc(where)}</span>`,
     onSubmit: async (v) => {
       await setTheme(v.theme, true);
       await setType({ font: v.font, size: v.text_size }, true);
@@ -1861,7 +1865,7 @@ document.addEventListener("keydown", (e) => {
     if (document.querySelector(".menu")) closeMenu();
     else if (modalClose) modalClose();
     else if (state.view.name === "reading" || state.view.name === "exams") go({ name: "subject", id: state.view.id });
-    else if (state.view.name === "subject" || state.view.name === "research") go({ name: "overview" });
+    else if (["subject", "research", "todo", "stats"].includes(state.view.name)) go({ name: "overview" });
     else if (state.view.name === "exam") go({ name: "exams", id: state.data.course.id });
     else if (state.view.name === "attempt") go({ name: "exam", id: state.data.exam.id });
     // Taking an exam: Escape does nothing, so it can't be left by accident.
