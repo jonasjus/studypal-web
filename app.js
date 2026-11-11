@@ -128,6 +128,7 @@ const iconBtn = (icon, act, attrs = "", title = "") =>
 const state = {
   view: { name: "overview" },
   data: null,          // what the current view was drawn from
+  expanded: new Set(), // side lists showing all their rows, not just the first few (see shortList)
   running: null,       // the timer or Pomodoro, as of `runningAt`
   runningAt: 0,
   phaseEnded: false,   // the Pomodoro countdown reached zero and we've asked Python to catch up
@@ -217,6 +218,39 @@ function weakRow(w, { showCourse = true } = {}) {
   </li>`;
 }
 
+// The lists at the side (deadlines, weak spots, study time) show their first few rows, with a button to
+// show the rest. `name` keeps each list's choice while the app is open.
+const SHORT_LIST = 3;
+
+function shortList(name, rows, empty = "") {
+  if (!rows.length) return empty;
+  const all = state.expanded.has(name), more = rows.length - SHORT_LIST;
+  const toggle = more > 0 ? `<button class="link panel-more" data-act="toggle-list" data-list="${name}" aria-expanded="${all}">${all ? "Show fewer" : `Show all ${rows.length}`}</button>` : "";
+  return `<ul class="list">${(all ? rows : rows.slice(0, SHORT_LIST)).join("")}</ul>${toggle}`;
+}
+
+// The overview's weak spots: how many are open in each subject (the list itself is on the subject's page).
+function weakCounts(d) {
+  const courses = new Map([...d.courses, ...d.done_courses].map((c) => [c.id, c]));
+  const counts = new Map();
+  for (const w of d.weak_spots) {
+    const n = counts.get(w.course_id) || { open: 0, high: 0 };
+    n.open += 1;
+    if (w.priority === "high") n.high += 1;
+    counts.set(w.course_id, n);
+  }
+  const rows = [...counts].filter(([id]) => courses.has(id)).sort((a, b) => b[1].high - a[1].high || b[1].open - a[1].open)
+    .map(([id, n]) => {
+      const c = courses.get(id);
+      return `<li class="row weak-count" data-act="open-subject" data-id="${id}" tabindex="0" title="See ${esc(c.code)}'s weak spots">
+        <span class="side-badge" style="background:${esc(cc(c.color))}">${esc((c.code || c.name).slice(0, 3))}</span>
+        <div class="grow"><div class="title">${esc(`${c.code} ${c.name}`.trim())}</div></div>
+        ${n.high ? `<span class="tag high">${n.high} high</span>` : ""}
+        <span class="weak-n" aria-label="${n.open} open weak spot${n.open !== 1 ? "s" : ""}">${n.open}</span></li>`;
+    });
+  return shortList("overview-weak", rows);
+}
+
 // Study time per day, with research time stacked on top of course time in its own colour.
 function weekChart(d) {
   const max = Math.max(60, ...d.week.map((x) => x.minutes));
@@ -288,11 +322,11 @@ function renderOverview(d) {
       ${plantPanel(d.overall)}
       <div class="panel">
         <div class="section-head"><h2>Deadlines</h2><button class="btn small ghost" data-act="add-deadline">+ Add</button></div>
-        ${d.deadlines.length ? `<ul class="list">${d.deadlines.map((x) => deadlineRow(x)).join("")}</ul>` : '<p class="empty-small">Nothing due. Nice.</p>'}
+        ${shortList("overview-deadlines", d.deadlines.map((x) => deadlineRow(x)), '<p class="empty-small">Nothing due. Nice.</p>')}
       </div>
       <div class="panel">
         <div class="section-head"><h2>Weak spots</h2><button class="btn small ghost" data-act="add-weak">+ Add</button></div>
-        ${d.weak_spots.length ? `<ul class="list">${d.weak_spots.map((x) => weakRow(x)).join("")}</ul>` : '<p class="empty-small">Things you find hard go here, so you remember to come back to them.</p>'}
+        ${d.weak_spots.length ? weakCounts(d) : '<p class="empty-small">Things you find hard go here, so you remember to come back to them.</p>'}
       </div>
       ${weekChart(d)}
     </aside>
@@ -343,7 +377,7 @@ function renderSubject(d) {
         <div class="sub">${esc([s.topic, s.note].filter(Boolean).join(": ") || "—")}</div></div>
       <span class="when">${esc(s.length)}</span>
       <span class="row-actions">${iconBtn("edit", "edit-session", `data-id="${s.id}"`, "Edit")}${iconBtn("trash", "delete-session", `data-id="${s.id}"`, "Delete")}</span>
-    </li>`).join("");
+    </li>`);
   const readingLabel = d.reading.required ? `Reading list ${d.reading.read}/${d.reading.required}` : "Reading list";
   return `<div class="subject-head" style="--course:${esc(cc(c.color))}">
     <div class="crumbs"><button class="btn small ghost" data-go="overview">${ICONS.back} All subjects</button></div>
@@ -381,15 +415,15 @@ function renderSubject(d) {
     <aside class="stack">
       <div class="panel">
         <div class="section-head"><h2>Weak spots</h2><button class="btn small ghost" data-act="add-weak" data-course="${c.id}">+ Add</button></div>
-        ${d.weak_spots.length ? `<ul class="list">${d.weak_spots.map((x) => weakRow(x, { showCourse: false })).join("")}</ul>` : '<p class="empty-small">None noted.</p>'}
+        ${shortList("subject-weak", d.weak_spots.map((x) => weakRow(x, { showCourse: false })), '<p class="empty-small">None noted.</p>')}
       </div>
       <div class="panel">
         <div class="section-head"><h2>Deadlines</h2><button class="btn small ghost" data-act="add-deadline" data-course="${c.id}">+ Add</button></div>
-        <ul class="list">${d.deadlines.map((x) => deadlineRow(x, { showCourse: false })).join("")}</ul>
+        ${shortList("subject-deadlines", d.deadlines.map((x) => deadlineRow(x, { showCourse: false })))}
       </div>
       <div class="panel">
         <div class="section-head"><h2>Study time</h2><span class="muted">${esc(d.week_total)} this week, ${esc(d.total)} in total</span></div>
-        ${sessions ? `<ul class="list">${sessions}</ul>` : '<p class="empty-small">No study time logged yet.</p>'}
+        ${shortList("subject-sessions", sessions, '<p class="empty-small">No study time logged yet.</p>')}
       </div>
     </aside>
   </div>`;
@@ -1687,6 +1721,11 @@ const actions = {
   "add-weak": (el) => weakForm(el.dataset.course ? Number(el.dataset.course) : null),
   "edit-weak": (el) => weakForm(null, currentWeak(el.dataset.id)),
   "toggle-weak": (el) => act("toggle_weak", Number(el.dataset.id)),
+  "toggle-list": (el) => {
+    const name = el.dataset.list;
+    if (!state.expanded.delete(name)) state.expanded.add(name);
+    renderView();
+  },
   "delete-weak": async (el) => { if (await confirmBox("Delete weak spot?", currentWeak(el.dataset.id).description)) act("delete_weak", Number(el.dataset.id)); },
 
   "add-deadline": (el) => deadlineForm(el.dataset.course ? Number(el.dataset.course) : null),
@@ -1870,7 +1909,7 @@ document.addEventListener("keydown", (e) => {
     else if (state.view.name === "attempt") go({ name: "exam", id: state.data.exam.id });
     // Taking an exam: Escape does nothing, so it can't be left by accident.
   }
-  if (e.key === "Enter" && e.target.matches?.(".card, .exam-card")) actions[e.target.dataset.act](e.target);
+  if (e.key === "Enter" && e.target.matches?.(".card, .exam-card, .weak-count")) actions[e.target.dataset.act](e.target);
 });
 
 // ---------- themes ----------
