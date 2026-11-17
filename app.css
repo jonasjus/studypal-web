@@ -732,16 +732,16 @@ body:has(#overall:not([hidden])) #toasts { bottom: 64px; }
 .topic-tasks-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px 6px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.875rem; }
 .topic-tasks-head b { color: var(--text); font-weight: 600; }
 .topic-tasks-head svg { color: var(--course, var(--accent)); }
-.link-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
-.link-chip {
+.rl-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.rl-chip {
   display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px;
   font-size: 0.71875rem; line-height: 1.5; white-space: nowrap; color: var(--muted);
   background: var(--surface-2); border: 1px solid var(--border);
   flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
-.link-chip svg { width: 11px; height: 11px; flex: none; }
-.link-chip.done { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
-.sec .link-chips { flex: none; max-width: 45%; overflow: hidden; }
+.rl-chip svg { width: 11px; height: 11px; flex: none; }
+.rl-chip.done { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+.sec .rl-chips { flex: none; max-width: 45%; overflow: hidden; }
 .pick-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 4px; background: var(--surface); }
 .pick-book + .pick-book { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
 .pick-book-title { font-weight: 600; font-size: 0.8125rem; padding: 2px 8px 4px; color: var(--muted); }
@@ -1144,6 +1144,36 @@ body:has(#overall:not([hidden])) #toasts { bottom: 64px; }
   #toasts { left: 12px; right: 12px; transform: none; bottom: calc(16px + env(safe-area-inset-bottom)); }
   .toast { max-width: none; }
 }
+/* A book, task sheet, chapter or task: its counts and buttons sit in the heading's row on a wide screen;
+   on a phone they move under the title, so the title gets the width instead of one word per line. */
+.rl-counts, .rl-actions { display: contents; }
+@media (max-width: 700px) {
+  .source-head { flex-wrap: wrap; row-gap: 8px; column-gap: 8px; padding: 12px; }
+  .source-head .grow { flex: 1 1 0; min-width: 0; }
+  .source-head h3 { overflow-wrap: anywhere; }
+  .source-head .rl-counts, .source-head .rl-actions {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px; order: 10; flex-basis: 100%; padding-left: 30px;
+  }
+  .source-head .rl-actions { order: 11; }
+  .topic-head .rl-counts, .topic-head .rl-actions { padding-left: 0; }  /* no fold arrow to line up with */
+  .rl-counts .meter { flex: 1 1 60px; width: auto; max-width: 160px; }
+
+  .chapter-head { flex-wrap: wrap; row-gap: 4px; column-gap: 8px; padding: 10px 12px; }
+  .chapter-head .grow { flex: 1 1 0; min-width: 0; }
+  .chapter-head .title { overflow-wrap: anywhere; }
+  .chapter-head .rl-counts { display: flex; align-items: center; gap: 8px; order: 10; flex-basis: 100%; padding-left: 58px; }
+
+  .sections { padding: 0 12px 8px 40px; }
+  .sec { flex-wrap: wrap; row-gap: 2px; }
+  .sec .rl-chips { order: 10; flex-basis: 100%; max-width: none; padding-left: 54px; }
+  .sec .sec-menu { opacity: 1; }
+
+  .reading-part-head { flex-wrap: wrap; }
+  .topic-tasks-head { padding: 10px 12px 6px; }
+  .lits { padding: 0 12px 12px; }
+  .lit-title { max-width: 220px; }
+}
+
 /* Touch screens have no hover, so what hover shows is always there (or left out). */
 @media (hover: none) {
   .row.touched .row-actions, .entry.touched .row-actions { display: flex; }

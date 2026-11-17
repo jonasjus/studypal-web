@@ -446,10 +446,10 @@ const TASK_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" s
 function linkChips(items, kind) {
   if (!items || !items.length) return "";
   const icon = kind === "reading" ? ICONS.book : TASK_ICON;
-  return `<span class="link-chips">${items.map((x) => {
+  return `<span class="rl-chips">${items.map((x) => {
     const label = kind === "reading" ? `${x.short || x.book} ${x.number}` : x.label;
     const title = kind === "reading" ? `${x.book}: ${x.label}${x.read ? " (read)" : ""}` : `${x.label}${x.done ? " (done)" : ""}`;
-    return `<span class="link-chip${(kind === "reading" ? x.read : x.done) ? " done" : ""}" title="${esc(title)}">${icon}${esc(label)}</span>`;
+    return `<span class="rl-chip${(kind === "reading" ? x.read : x.done) ? " done" : ""}" title="${esc(title)}">${icon}${esc(label)}</span>`;
   }).join("")}</span>`;
 }
 
@@ -481,7 +481,7 @@ function chapterBlock(ch, { sections = ch.sections, from = null, progress = ch.p
   const sub = [where, links].filter(Boolean).join(" ");
   const doneWhole = !ch.sections.length && ch.read;  // a chapter without sections, ticked off
   // A task without parts is just ticked; a count of 0/1 next to it says nothing.
-  const counts = task && !ch.sections.length ? "" : `${readingCounts(progress)} ${meter(progress)}`;
+  const counts = task && !ch.sections.length ? "" : `<span class="rl-counts">${readingCounts(progress)} ${meter(progress)}</span>`;
   return `<div class="chapter${doneWhole ? " read" : ""}${task ? " task" : ""}">
     <div class="chapter-head">
       ${ch.sections.length ? `<button class="chev${open ? " open" : ""}" data-act="fold" data-id="${ch.id}" aria-label="${words.show}" aria-expanded="${open}">${ICONS.chev}</button>` : '<span class="chev-gap"></span>'}
@@ -524,9 +524,9 @@ function sourcePanel(s) {
       ${n ? `<button class="chev${open ? " open" : ""}" ${fold} aria-label="Show chapters" aria-expanded="${open}">${ICONS.chev}</button>` : '<span class="chev-gap"></span>'}
       <div class="grow"><h3>${esc(s.title)}</h3>
         <div class="muted">${esc(meta)}${s.topic ? ` <span class="tag topic-tag">${esc(s.topic)}</span>` : ""}</div></div>
-      ${n ? `${readingCounts(s.progress)} ${meter(s.progress)}` : ""}
-      ${citeButton(s)}
-      <button class="btn small" data-act="add-chapter" data-id="${s.id}">+ Chapter</button>
+      ${n ? `<span class="rl-counts">${readingCounts(s.progress)} ${meter(s.progress)}</span>` : ""}
+      <span class="rl-actions">${citeButton(s)}
+      <button class="btn small" data-act="add-chapter" data-id="${s.id}">+ Chapter</button></span>
       <button class="icon-btn small" data-act="source-menu" data-id="${s.id}" aria-label="More">${ICONS.more}</button>
     </div>
     ${open ? s.chapters.map((ch) => chapterBlock(ch)).join("") : ""}
@@ -548,9 +548,9 @@ function sheetPanel(s) {
       ${n ? `<button class="chev${open ? " open" : ""}" ${fold} aria-label="Show tasks" aria-expanded="${open}">${ICONS.chev}</button>` : '<span class="chev-gap"></span>'}
       <div class="grow"><h3>${esc(s.title)}</h3>
         <div class="muted">${esc(meta)}${s.topic ? ` <span class="tag topic-tag">${esc(s.topic)}</span>` : ""} ${linkChips(s.reading, "reading")}</div></div>
-      ${n ? `${tasksCounts(s.progress)} ${meter(s.progress)}` : ""}
-      ${n && !s.progress.complete ? `<button class="btn small" data-act="sheet-done" data-id="${s.id}" title="Tick off every task on this sheet, parts and all">${TASK_ICON} Done with all</button>` : ""}
-      <button class="btn small" data-act="add-sheet-task" data-id="${s.id}">+ Task</button>
+      ${n ? `<span class="rl-counts">${tasksCounts(s.progress)} ${meter(s.progress)}</span>` : ""}
+      <span class="rl-actions">${n && !s.progress.complete ? `<button class="btn small" data-act="sheet-done" data-id="${s.id}" title="Tick off every task on this sheet, parts and all">${TASK_ICON} Done with all</button>` : ""}
+      <button class="btn small" data-act="add-sheet-task" data-id="${s.id}">+ Task</button></span>
       <button class="icon-btn small" data-act="sheet-menu" data-id="${s.id}" aria-label="More">${ICONS.more}</button>
     </div>
     ${open ? s.chapters.map((ch) => chapterBlock(ch, { task: true })).join("") : ""}
@@ -619,10 +619,10 @@ function renderByTopic(d) {
     const ids = [...g.sources.keys()].join(",");
     const topic = g.topic || t.topic;
     return `<div class="panel source">
-      <div class="source-head">
+      <div class="source-head topic-head">
         <div class="grow"><h3>${topic ? esc(topic.title) : '<span class="muted">Not linked to a topic</span>'}</h3></div>
-        ${progress.required ? `${readingCounts(progress)} ${meter(progress)}` : ""}
-        ${g.sources.size ? `<button class="btn small ghost" data-act="copy-apa-list" data-ids="${ids}" title="Copy the references for this topic as an APA reference list">${ICONS.copy} Copy all APA</button>` : ""}
+        ${progress.required ? `<span class="rl-counts">${readingCounts(progress)} ${meter(progress)}</span>` : ""}
+        ${g.sources.size ? `<span class="rl-actions"><button class="btn small ghost" data-act="copy-apa-list" data-ids="${ids}" title="Copy the references for this topic as an APA reference list">${ICONS.copy} Copy all APA</button></span>` : ""}
       </div>
       ${g.sources.size ? `<div class="lits">${literature}</div>` : ""}
       ${chapters}
