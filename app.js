@@ -354,8 +354,9 @@ function topicRow(t) {
   const options = STATUSES.map(([v, l]) => `<option value="${v}"${v === t.status ? " selected" : ""}>${l}</option>`).join("");
   const dots = [1, 2, 3, 4, 5].map((n) =>
     `<button class="${n <= t.confidence ? "on" : ""}" data-act="confidence" data-id="${t.id}" data-value="${n}" title="Confidence ${n} of 5" aria-label="Confidence ${n} of 5"></button>`).join("");
-  const reading = t.reading && t.reading.required
-    ? `<span class="reading-mini">${ICONS.book} ${t.reading.read}/${t.reading.required}</span>` : "";
+  const reading = (t.reading && t.reading.required
+    ? `<span class="reading-mini" title="Reading done">${ICONS.book} ${t.reading.read}/${t.reading.required}</span>` : "")
+    + (t.tasks && t.tasks.required ? `<span class="reading-mini" title="Tasks done">${TASK_ICON} ${t.tasks.read}/${t.tasks.required}</span>` : "");
   return `<li class="row topic-row">
     <select class="status s-${t.status}" data-change="topic-status" data-id="${t.id}" aria-label="Status">${options}</select>
     <div class="grow"><div class="title">${esc(t.title)}</div>
@@ -378,7 +379,8 @@ function renderSubject(d) {
       <span class="when">${esc(s.length)}</span>
       <span class="row-actions">${iconBtn("edit", "edit-session", `data-id="${s.id}"`, "Edit")}${iconBtn("trash", "delete-session", `data-id="${s.id}"`, "Delete")}</span>
     </li>`);
-  const readingLabel = d.reading.required ? `Reading list ${d.reading.read}/${d.reading.required}` : "Reading list";
+  const readingLabel = ["Reading list", d.reading.required ? `${d.reading.read}/${d.reading.required}` : "",
+    d.tasks && d.tasks.required ? `· tasks ${d.tasks.read}/${d.tasks.required}` : ""].filter(Boolean).join(" ");
   return `<div class="subject-head" style="--course:${esc(cc(c.color))}">
     <div class="crumbs"><button class="btn small ghost" data-go="overview">${ICONS.back} All subjects</button></div>
     ${courseBanner(c, "page")}
@@ -438,36 +440,60 @@ function readingCounts(r) {
   return `<span class="muted">${r.read}/${r.required}</span>${optional}`;
 }
 
-function sectionRow(x) {
+// A task sheet or task's reading, and on the reading list the tasks that go with it: small chips, ticked when done.
+const TASK_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 3 3 5-6"/></svg>';
+
+function linkChips(items, kind) {
+  if (!items || !items.length) return "";
+  const icon = kind === "reading" ? ICONS.book : TASK_ICON;
+  return `<span class="link-chips">${items.map((x) => {
+    const label = kind === "reading" ? `${x.short || x.book} ${x.number}` : x.label;
+    const title = kind === "reading" ? `${x.book}: ${x.label}${x.read ? " (read)" : ""}` : `${x.label}${x.done ? " (done)" : ""}`;
+    return `<span class="link-chip${(kind === "reading" ? x.read : x.done) ? " done" : ""}" title="${esc(title)}">${icon}${esc(label)}</span>`;
+  }).join("")}</span>`;
+}
+
+function sectionRow(x, task = false) {
   const notes = [x.required ? "" : "optional", x.own_topic ? `→ ${esc(x.topic)}` : ""].filter(Boolean).join(" · ");
+  const title = task ? (x.read ? "Done. Click to untick" : "Click when it's done") : (x.read ? "Read. Click to untick" : "Click when you've read it");
   return `<div class="sec${x.read ? " read" : ""}${x.required ? "" : " optional"}" data-act="toggle-section" data-id="${x.id}"
-    role="checkbox" aria-checked="${x.read}" title="${x.read ? "Read. Click to untick" : "Click when you've read it"}">
+    role="checkbox" aria-checked="${x.read}" title="${title}">
     <span class="sec-box"></span>
     <span class="sec-num">${esc(x.number)}</span>
     <span class="sec-title">${esc(x.title)}</span>
+    ${linkChips(x.tasks, "tasks")}
     ${notes ? `<span class="sec-note">${notes}</span>` : ""}
     <button class="icon-btn small sec-menu" data-act="section-menu" data-id="${x.id}" data-required="${x.required ? 1 : 0}" aria-label="Section options">${ICONS.more}</button>
   </div>`;
 }
 
-// One chapter. In the topic view it may show only some of its sections (`sections`), and says which book it's from.
-function chapterBlock(ch, { sections = ch.sections, from = null, progress = ch.progress } = {}) {
+// One chapter, or with `task` one task of a task sheet (its sections are the task's parts). In the topic view it
+// may show only some of its sections (`sections`), and says which book or sheet it's from.
+function chapterBlock(ch, { sections = ch.sections, from = null, progress = ch.progress, task = false } = {}) {
   const open = !state.collapsed.has(ch.id);
   const whole = sections.length === ch.sections.length;
-  const sub = from ? `${esc(from)}${whole ? "" : " · some sections"}` : ch.topic ? `Counts toward: ${esc(ch.topic)}` : "";
+  const words = task ? { mark: ch.sections.length ? "Mark every part done" : "Mark the task done", untitled: "Untitled task",
+    show: "Show parts", edit: "edit-sheet-task", del: "delete-sheet-task", what: "task", some: "some parts" }
+    : { mark: ch.sections.length ? "Mark the whole chapter read" : "Mark the chapter read", untitled: "Untitled chapter",
+    show: "Show sections", edit: "edit-chapter", del: "delete-chapter", what: "chapter", some: "some sections" };
+  const where = from ? `${esc(from)}${whole ? "" : ` · ${words.some}`}` : ch.topic ? `${task ? "Topic" : "Counts toward"}: ${esc(ch.topic)}` : "";
+  const links = task ? linkChips(ch.reading, "reading") : linkChips(ch.tasks, "tasks");
+  const sub = [where, links].filter(Boolean).join(" ");
   const doneWhole = !ch.sections.length && ch.read;  // a chapter without sections, ticked off
-  return `<div class="chapter${doneWhole ? " read" : ""}">
+  // A task without parts is just ticked; a count of 0/1 next to it says nothing.
+  const counts = task && !ch.sections.length ? "" : `${readingCounts(progress)} ${meter(progress)}`;
+  return `<div class="chapter${doneWhole ? " read" : ""}${task ? " task" : ""}">
     <div class="chapter-head">
-      ${ch.sections.length ? `<button class="chev${open ? " open" : ""}" data-act="fold" data-id="${ch.id}" aria-label="Show sections" aria-expanded="${open}">${ICONS.chev}</button>` : '<span class="chev-gap"></span>'}
-      ${whole ? `<input type="checkbox" class="check" data-act="chapter-read" data-id="${ch.id}" ${progress.complete ? "checked" : ""} title="${ch.sections.length ? "Mark the whole chapter read" : "Mark the chapter read"}" ${progress.required ? "" : "disabled"}>` : '<span class="check-gap"></span>'}
+      ${ch.sections.length ? `<button class="chev${open ? " open" : ""}" data-act="fold" data-id="${ch.id}" aria-label="${words.show}" aria-expanded="${open}">${ICONS.chev}</button>` : '<span class="chev-gap"></span>'}
+      ${whole ? `<input type="checkbox" class="check" data-act="chapter-read" data-id="${ch.id}" ${progress.complete ? "checked" : ""} title="${words.mark}" ${progress.required ? "" : "disabled"}>` : '<span class="check-gap"></span>'}
       <span class="num">${esc(ch.number)}</span>
-      <div class="grow"><div class="title">${esc(ch.title) || '<span class="faint">Untitled chapter</span>'}</div>
+      <div class="grow"><div class="title">${esc(ch.title) || `<span class="faint">${words.untitled}</span>`}</div>
         ${sub ? `<div class="sub">${sub}</div>` : ""}</div>
-      ${readingCounts(progress)} ${meter(progress)}
-      ${iconBtn("edit", "edit-chapter", `data-id="${ch.id}"`, "Edit chapter")}
-      ${iconBtn("trash", "delete-chapter", `data-id="${ch.id}"`, "Delete chapter")}
+      ${counts}
+      ${iconBtn("edit", words.edit, `data-id="${ch.id}"`, `Edit ${words.what}`)}
+      ${iconBtn("trash", words.del, `data-id="${ch.id}"`, `Delete ${words.what}`)}
     </div>
-    ${open && sections.length ? `<div class="sections">${sections.map(sectionRow).join("")}</div>` : ""}
+    ${open && sections.length ? `<div class="sections">${sections.map((x) => sectionRow(x, task)).join("")}</div>` : ""}
   </div>`;
 }
 
@@ -507,12 +533,36 @@ function sourcePanel(s) {
   </div>`;
 }
 
+function tasksCounts(r) {
+  return `<span class="muted">${r.read}/${r.required} done</span>`;
+}
+
+// A task sheet: folds like a book; its tasks are ticked off one by one.
+function sheetPanel(s) {
+  const n = s.chapters.length;
+  const open = n > 0 && state.openSources.has(s.id);
+  const fold = n ? `data-act="fold-source" data-id="${s.id}"` : "";
+  const meta = n ? plural(n, "task") : "No tasks yet";
+  return `<div class="panel source sheet${open ? " open" : ""}${s.progress.complete ? " complete" : ""}">
+    <div class="source-head${n ? " foldable" : ""}" ${fold}>
+      ${n ? `<button class="chev${open ? " open" : ""}" ${fold} aria-label="Show tasks" aria-expanded="${open}">${ICONS.chev}</button>` : '<span class="chev-gap"></span>'}
+      <div class="grow"><h3>${esc(s.title)}</h3>
+        <div class="muted">${esc(meta)}${s.topic ? ` <span class="tag topic-tag">${esc(s.topic)}</span>` : ""} ${linkChips(s.reading, "reading")}</div></div>
+      ${n ? `${tasksCounts(s.progress)} ${meter(s.progress)}` : ""}
+      ${n && !s.progress.complete ? `<button class="btn small" data-act="sheet-done" data-id="${s.id}" title="Tick off every task on this sheet, parts and all">${TASK_ICON} Done with all</button>` : ""}
+      <button class="btn small" data-act="add-sheet-task" data-id="${s.id}">+ Task</button>
+      <button class="icon-btn small" data-act="sheet-menu" data-id="${s.id}" aria-label="More">${ICONS.more}</button>
+    </div>
+    ${open ? s.chapters.map((ch) => chapterBlock(ch, { task: true })).join("") : ""}
+  </div>`;
+}
+
 // Everything on the list sorted under the topic it counts toward: a section's own topic, else its chapter's, else its book's.
-function topicGroups(d) {
-  const groups = new Map([...d.topics.map((t) => [t.id, { topic: t, sources: new Map(), chapters: [] }]),
+function topicGroups(list, topics) {
+  const groups = new Map([...topics.map((t) => [t.id, { topic: t, sources: new Map(), chapters: [] }]),
                           [null, { topic: null, sources: new Map(), chapters: [] }]]);
   const group = (id) => groups.get(groups.has(id) ? id : null);
-  for (const s of d.sources) {
+  for (const s of list) {
     if (!s.chapters.length) group(s.topic_id).sources.set(s.id, s);
     for (const ch of s.chapters) {
       if (!ch.sections.length) {
@@ -534,33 +584,49 @@ function topicGroups(d) {
       }
     }
   }
-  return [...groups.values()].filter((g) => g.sources.size);
+  return groups;
 }
 
+// A chapter (or task) without sections counts as one thing to do.
+const entryProgress = (e) => (e.sections.length ? sectionsProgress(e.sections) : e.ch.progress);
+
+function sumProgress(entries) {
+  const p = entries.map(entryProgress).reduce((a, x) => ({
+    read: a.read + x.read, required: a.required + x.required,
+    optional_read: a.optional_read + x.optional_read, optional: a.optional + x.optional }),
+    { read: 0, required: 0, optional_read: 0, optional: 0 });
+  p.fraction = p.required ? p.read / p.required : 0;
+  p.complete = p.required > 0 && p.read === p.required;
+  return p;
+}
+
+// The topic view: each topic's reading, then the tasks that go with it.
 function renderByTopic(d) {
-  return topicGroups(d).map((g) => {
-    // A chapter without sections counts as one thing to read.
-    const entryProgress = (e) => (e.sections.length ? sectionsProgress(e.sections) : e.ch.progress);
-    const progress = g.chapters.map(entryProgress).reduce((a, p) => ({
-      read: a.read + p.read, required: a.required + p.required,
-      optional_read: a.optional_read + p.optional_read, optional: a.optional + p.optional }),
-      { read: 0, required: 0, optional_read: 0, optional: 0 });
-    progress.fraction = progress.required ? progress.read / progress.required : 0;
-    progress.complete = progress.required > 0 && progress.read === progress.required;
+  const reading = topicGroups(d.sources, d.topics), tasks = topicGroups(d.sheets || [], d.topics);
+  return [...reading.keys()].map((key) => {
+    const g = reading.get(key), t = tasks.get(key);
+    if (!g.sources.size && !t.sources.size) return "";
+    const progress = sumProgress(g.chapters);
+    // Tasks count whole: one with parts is done once all its parts are (and only when all of it is under this topic).
+    const taskProgress = sumProgress(t.chapters.map((e) => ({ sections: [], ch: { progress: {
+      read: entryProgress(e).complete && e.sections.length === e.ch.sections.length ? 1 : 0, required: 1, optional_read: 0, optional: 0 } } })));
     const literature = [...g.sources.values()].map((s) => `<span class="lit">
         <span class="lit-title">${esc(s.title)}</span>${s.year ? `<span class="faint">${esc(s.year)}</span>` : ""}
         <button class="icon-btn small" data-act="copy-apa" data-id="${s.id}" title="Copy APA reference" aria-label="Copy APA reference for ${esc(s.title)}">${ICONS.copy}</button>
       </span>`).join("");
     const chapters = g.chapters.map((e) => chapterBlock(e.ch, { sections: e.sections, from: e.s.title, progress: entryProgress(e) })).join("");
+    const taskBlocks = t.chapters.map((e) => chapterBlock(e.ch, { sections: e.sections, from: e.s.title, progress: entryProgress(e), task: true })).join("");
     const ids = [...g.sources.keys()].join(",");
+    const topic = g.topic || t.topic;
     return `<div class="panel source">
       <div class="source-head">
-        <div class="grow"><h3>${g.topic ? esc(g.topic.title) : '<span class="muted">Not linked to a topic</span>'}</h3></div>
+        <div class="grow"><h3>${topic ? esc(topic.title) : '<span class="muted">Not linked to a topic</span>'}</h3></div>
         ${progress.required ? `${readingCounts(progress)} ${meter(progress)}` : ""}
-        <button class="btn small ghost" data-act="copy-apa-list" data-ids="${ids}" title="Copy the references for this topic as an APA reference list">${ICONS.copy} Copy all APA</button>
+        ${g.sources.size ? `<button class="btn small ghost" data-act="copy-apa-list" data-ids="${ids}" title="Copy the references for this topic as an APA reference list">${ICONS.copy} Copy all APA</button>` : ""}
       </div>
-      <div class="lits">${literature}</div>
+      ${g.sources.size ? `<div class="lits">${literature}</div>` : ""}
       ${chapters}
+      ${t.chapters.length ? `<div class="topic-tasks-head">${TASK_ICON}<b>Tasks</b><span class="grow"></span>${taskProgress.required ? `${tasksCounts(taskProgress)} ${meter(taskProgress)}` : ""}</div>${taskBlocks}` : ""}
     </div>`;
   }).join("");
 }
@@ -568,8 +634,18 @@ function renderByTopic(d) {
 function renderReading(d) {
   const c = d.course;
   const byTopic = state.readingView === "topic";
-  const body = byTopic ? renderByTopic(d) : d.sources.map(sourcePanel).join("");
-  const toggle = d.sources.length ? `<div class="seg view-toggle" role="radiogroup" aria-label="Group the list">
+  const sheets = d.sheets || [];
+  const tp = d.tasks_progress;
+  // By book: the literature, then the task sheets as their own part of the list.
+  const literature = d.sources.length ? d.sources.map(sourcePanel).join("") : "";
+  const taskPart = `<div class="reading-part-head">
+      <h2>${TASK_ICON} Tasks</h2>${tp && tp.required ? `<span class="muted">${tp.read} of ${tp.required} done</span>` : ""}
+      <span class="grow"></span><button class="btn small" data-act="add-sheet" data-course="${c.id}">+ Add task sheet</button>
+    </div>
+    ${sheets.length ? sheets.map(sheetPanel).join("") : `<div class="panel panel-body"><p class="muted" style="margin:0">Add the task sheets, problem sets and exercises you need to do for ${esc(c.code)}, and tick them off as you go. Link them to topics and to the reading they go with.</p></div>`}`;
+  const books = literature || sheets.length ? `${sheets.length ? `<div class="reading-part-head"><h2>${ICONS.book} Literature</h2></div>` : ""}${literature}${taskPart}` : "";
+  const body = byTopic ? renderByTopic(d) : books;
+  const toggle = d.sources.length || sheets.length ? `<div class="seg view-toggle" role="radiogroup" aria-label="Group the list">
       <label><input type="radio" name="reading-view" value="book" data-change="reading-view"${byTopic ? "" : " checked"}>By book</label>
       <label><input type="radio" name="reading-view" value="topic" data-change="reading-view"${byTopic ? " checked" : ""}>By topic</label>
     </div>` : "";
@@ -577,9 +653,9 @@ function renderReading(d) {
     <div class="crumbs"><button class="btn small ghost" data-act="open-subject" data-id="${c.id}">${ICONS.back} ${esc(c.code)} ${esc(c.name)}</button></div>
     <div class="title-line"><h1>Reading list</h1>
       ${d.progress.required ? `<span class="muted">${d.progress.read} of ${d.progress.required} needed parts read</span>` : ""}
-      <div class="title-actions">${toggle}<button class="btn primary" data-act="add-source" data-course="${c.id}">+ Add literature</button></div>
+      <div class="title-actions">${toggle}<button class="btn" data-act="add-sheet" data-course="${c.id}">+ Add task sheet</button><button class="btn primary" data-act="add-source" data-course="${c.id}">+ Add literature</button></div>
     </div>
-    <p class="muted" style="margin:8px 0 0">Click a section to tick it off. Grayed-out sections are optional and don&apos;t count toward progress.${byTopic ? " Link a book, chapter or section to a topic to group it here." : ""}</p>
+    <p class="muted" style="margin:8px 0 0">Click a section or task to tick it off. Grayed-out sections are optional and don&apos;t count toward progress.${byTopic ? " Link a book, task sheet, chapter or task to a topic to group it here." : ""}</p>
   </div>
   <div style="max-width:1280px;margin:0 auto;--course:${esc(cc(c.color))}">${body || `<div class="panel panel-body"><p class="muted" style="margin:0">Add the books, articles, web pages or lecture notes you need to read for ${esc(c.code)}. You can paste a table of contents and the sections are set up for you.</p></div>`}</div>`;
 }
@@ -662,10 +738,23 @@ function goalReached(r) {
   return !!r.goal_seconds && r.elapsed_seconds + (Date.now() - state.runningAt) / 1000 >= r.goal_seconds;
 }
 
+// The bar's background fills from left to right as the countdown runs (a spun timer or a Pomodoro phase).
+function setProgress(el, done) {
+  const bar = el.closest(".running");
+  if (!bar) return;
+  if (done === null) { bar.style.removeProperty("--progress"); bar.classList.remove("has-progress"); return; }
+  bar.classList.add("has-progress");
+  bar.style.setProperty("--progress", `${(Math.max(0, Math.min(1, done)) * 100).toFixed(2)}%`);
+}
+
 function updateClock() {
   const r = state.running, el = $("#clock");
   if (!r || !el) return;
   const passed = (Date.now() - state.runningAt) / 1000;
+  if (r.kind === "timer") setProgress(el, r.goal_seconds ? (r.elapsed_seconds + passed) / r.goal_seconds : null);
+  else if (r.phase === "focus" && r.focus_done) setProgress(el, 1);
+  else if (r.remaining_seconds === null || !r.length_seconds) setProgress(el, null);
+  else setProgress(el, 1 - (r.paused ? r.remaining_seconds : r.remaining_seconds - passed) / r.length_seconds);
   if (r.kind === "timer" && r.goal_seconds) {
     const left = r.goal_seconds - (r.elapsed_seconds + passed);
     el.textContent = left > 0 ? clock(left) : `+${clock(-left)}`;
@@ -702,7 +791,6 @@ async function refresh() {
   const v = state.view;
   let data;
   await beforeRefresh();
-  const focus = keepFocus();
   const view = VIEWS[v.name] || VIEWS.overview;
   try {
     data = await view.load(v.id);
@@ -717,6 +805,8 @@ async function refresh() {
     return;
   }
   state.data = data;
+  // Taken only now, after the load, so whatever was typed while it was loading is kept too.
+  const focus = keepFocus();
   if (v.name === "overview") {
     $("#today").textContent = data.today;
     state.colors = data.colors;
@@ -762,12 +852,16 @@ let afterRender = () => {};
 function keepFocus() {
   const el = document.activeElement;
   if (!el || !el.id || !$("#view").contains(el)) return null;
-  return { id: el.id, start: el.selectionStart, end: el.selectionEnd, scroll: el.scrollTop };
+  // A text field's typing isn't saved anywhere yet (a to-do being written), so the redrawn page would bring it
+  // back empty. Carry the text over along with the cursor.
+  const typed = (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|search|url|email|number|)$/.test(el.getAttribute("type") || ""))) ? el.value : null;
+  return { id: el.id, value: typed, start: el.selectionStart, end: el.selectionEnd, scroll: el.scrollTop };
 }
 
 function restoreFocus(f) {
   const el = f && document.getElementById(f.id);
   if (!el) return;
+  if (f.value !== null && "value" in el && el.value !== f.value) el.value = f.value;
   el.focus({ preventScroll: true });
   try { el.setSelectionRange(f.start, f.end); } catch (e) { /* not a text field */ }
   el.scrollTop = f.scroll;
@@ -1636,13 +1730,103 @@ function pasteForm(sourceId) {
   });
 }
 
+// ---------- task sheets ----------
+
+// Ticks for the literature's chapters and sections, to say what a task sheet or task goes with.
+function readingPicker(selected = []) {
+  const on = new Set(selected.map((x) => x.uid || x));
+  const books = (state.data.sources || []).filter((s) => s.chapters.length);
+  if (!books.length) return { name: "reading-pick", type: "html", label: "Goes with reading",
+    html: '<p class="muted pick-empty">Add literature with chapters to the reading list, then link tasks to it here.</p>' };
+  const box = (uid, label, cls = "") => `<label class="pick-row${cls}"><input type="checkbox" class="check reading-pick" value="${esc(uid)}"${on.has(uid) ? " checked" : ""}><span>${esc(label)}</span></label>`;
+  const html = `<div class="pick-list">${books.map((b) => `<div class="pick-book"><div class="pick-book-title">${esc(b.title)}</div>
+      ${b.chapters.map((ch) => box(ch.uid, `${ch.number} ${ch.title}`.trim(), " pick-chapter")
+        + ch.sections.map((x) => box(x.uid, `${x.number} ${x.title}`.trim(), " pick-section")).join("")).join("")}</div>`).join("")}</div>`;
+  return { name: "reading-pick", type: "html", label: "Goes with reading (optional)", html };
+}
+
+const pickedReading = (form) => [...form.querySelectorAll(".reading-pick:checked")].map((i) => i.value).join(",");
+const sheetTopicOptions = (topics, none = "— No topic —") => [["", none], ...topics.map((t) => [t.id, t.title])];
+
+function sheetForm(courseId, sheet = null) {
+  const fields = [
+    { name: "id", type: "hidden", value: sheet?.id ?? "" },
+    { name: "course_id", type: "hidden", value: courseId },
+    { name: "kind", type: "hidden", value: "tasks" },
+    { name: "title", label: "Name", value: sheet?.title ?? "", placeholder: "e.g. Task sheet 3" },
+    { name: "topic_id", label: "Belongs to topic", type: "select", value: sheet?.topic_id ?? "", options: sheetTopicOptions(state.data.topics),
+      hint: "Its tasks count toward this topic. A single task can be linked to a different one." },
+    readingPicker(sheet?.reading || []),
+  ];
+  if (!sheet) fields.push({ name: "contents", label: "Tasks", type: "textarea", rows: 4, placeholder: "1-8",
+    hint: "A range like “1-8” makes tasks 1 to 8. Or paste one task per line starting with its number (“3 Prove that…”); “3.1”, “3.2” become parts of task 3." });
+  openForm({
+    title: sheet ? "Edit task sheet" : "Add a task sheet", wide: true, fields, submit: sheet ? "Save" : "Add",
+    onSubmit: async (v, form) => {
+      const r = await call("save_source", { ...v, reading: pickedReading(form) });
+      if (!sheet) { state.openSources.add(r.id); saveOpenSources(); }
+      return r;
+    },
+  });
+}
+
+function nextTaskNumber(sheet) {
+  const numbers = sheet.chapters.map((ch) => parseInt(ch.number, 10)).filter((n) => !Number.isNaN(n));
+  return String(numbers.length ? Math.max(...numbers) + 1 : 1);
+}
+
+function sheetTaskForm(sheet) {
+  openForm({
+    title: `Add a task to ${sheet.title}`, wide: true,
+    fields: [
+      { name: "source_id", type: "hidden", value: sheet.id },
+      { row: [
+        { name: "number", label: "Task number", value: nextTaskNumber(sheet) },
+        { name: "title", label: "What it is (optional)", placeholder: "Prove the kernel is valid" },
+      ] },
+      { name: "sections", label: "Parts (optional)", placeholder: "1-3", hint: "For a task with parts to tick off one by one. In task 4, “1-3” means 4.1 to 4.3." },
+      { name: "topic_id", label: "Topic (optional)", type: "select", value: "", options: sheetTopicOptions(state.data.topics, "— Same as the sheet —") },
+      readingPicker(),
+    ],
+    submit: "Add task",
+    onSubmit: (v, form) => call("add_chapter", { ...v, reading: pickedReading(form) }),
+  });
+}
+
+function sheetTaskEditForm(ch) {
+  openForm({
+    title: `Edit task ${ch.number}`, wide: true,
+    fields: [
+      { name: "id", type: "hidden", value: ch.id },
+      { row: [
+        { name: "number", label: "Number", value: ch.number },
+        { name: "title", label: "What it is", value: ch.title },
+      ] },
+      { name: "topic_id", label: "Topic", type: "select", value: ch.topic_id ?? "", options: sheetTopicOptions(state.data.topics, "— Same as the sheet —"),
+        hint: "Doing the task counts as studying that topic." },
+      readingPicker(ch.reading),
+    ],
+    onSubmit: (v, form) => call("save_chapter", { ...v, reading: pickedReading(form) }),
+  });
+}
+
+function pasteTasksForm(sheetId) {
+  openForm({
+    title: "Add tasks", wide: true,
+    intro: "A range like “9-12” adds those tasks. Or paste one task per line starting with its number; “3.1”, “3.2” become parts of task 3. Tasks you already have are kept.",
+    fields: [{ name: "text", label: "Tasks", type: "textarea", rows: 10, placeholder: "1 Show that the kernel is positive definite\n2 Implement the dual form\n2.1 Derive the update\n2.2 Code it" }],
+    submit: "Add",
+    onSubmit: (v) => call("import_contents", sheetId, v.text),
+  });
+}
+
 // ---------- finding things in the current data ----------
 
 function findIn(list, id) { return (list || []).find((x) => String(x.id) === String(id)); }
 function currentDeadline(id) { return findIn(state.data.deadlines, id); }
 function currentWeak(id) { return findIn(state.data.weak_spots, id); }
 function currentChapter(id) {
-  for (const s of state.data.sources) { const ch = findIn(s.chapters, id); if (ch) return ch; }
+  for (const s of [...state.data.sources, ...(state.data.sheets || [])]) { const ch = findIn(s.chapters, id); if (ch) return ch; }
   return null;
 }
 
@@ -1781,6 +1965,33 @@ const actions = {
     const id = Number(el.dataset.id);
     state.collapsed.has(id) ? state.collapsed.delete(id) : state.collapsed.add(id);
     $("#view").innerHTML = renderReading(state.data);
+  },
+  "add-sheet": (el) => sheetForm(Number(el.dataset.course)),
+  "sheet-done": async (el) => {
+    const r = await act("set_sheet_done", Number(el.dataset.id), true);
+    if (r && typeof celebrate === "function") celebrate();
+  },
+  "sheet-menu": (el) => {
+    const s = findIn(state.data.sheets, el.dataset.id);
+    openMenu(el, [
+      { label: "Edit name, topic or reading", onClick: () => sheetForm(state.view.id, s) },
+      { label: "Add several tasks", onClick: () => pasteTasksForm(s.id) },
+      ...(s.progress.read ? [{ label: "Untick all tasks", onClick: () => act("set_sheet_done", s.id, false) }] : []),
+      "-",
+      { label: "Delete…", danger: true, onClick: async () => {
+        if (await confirmBox(`Delete “${s.title}”?`, "Its tasks are removed from the reading list.")) act("delete_source", s.id);
+      } },
+    ]);
+  },
+  "add-sheet-task": (el) => {
+    state.openSources.add(Number(el.dataset.id));
+    saveOpenSources();
+    sheetTaskForm(findIn(state.data.sheets, el.dataset.id));
+  },
+  "edit-sheet-task": (el) => sheetTaskEditForm(currentChapter(el.dataset.id)),
+  "delete-sheet-task": async (el) => {
+    const ch = currentChapter(el.dataset.id);
+    if (await confirmBox(`Delete task ${ch.number}?`, ch.sections.length ? "Its parts are removed too." : "It's removed from the task sheet.")) act("delete_chapter", ch.id);
   },
   "toggle-section": (el) => act("toggle_section", Number(el.dataset.id)),
   "section-menu": (el) => {

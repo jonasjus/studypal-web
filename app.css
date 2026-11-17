@@ -191,6 +191,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-bottom: 1px solid var(--border);
 }
 .running.break { background: var(--ok-soft); }
+/* The countdown's progress, filling the bar from the left (set by updateClock as --progress). */
+.running.has-progress {
+  --fill: color-mix(in srgb, var(--accent) 24%, var(--accent-soft));
+  background: linear-gradient(to right, var(--fill) var(--progress), var(--accent-soft) var(--progress));
+}
+.running.break.has-progress {
+  --fill: color-mix(in srgb, var(--ok) 24%, var(--ok-soft));
+  background: linear-gradient(to right, var(--fill) var(--progress), var(--ok-soft) var(--progress));
+}
 .running.overtime .clock { color: var(--ok); }
 .running.overtime .pulse { background: var(--ok); }
 .running .clock { font: 700 1.75rem/1 var(--figures); min-width: 80px; }
@@ -713,6 +722,35 @@ body:has(#overall:not([hidden])) #toasts { bottom: 64px; }
 .source:not(.open) .source-head { padding-top: 12px; padding-bottom: 12px; }
 .source { margin-bottom: 10px; }
 .chapter.read .chapter-head .num, .chapter.read .chapter-head .title { color: var(--muted); }
+
+/* Task sheets: their own part of the reading list, and the links between tasks and reading. */
+.reading-part-head { display: flex; align-items: center; gap: 10px; margin: 22px 0 10px; }
+.reading-part-head:first-child { margin-top: 4px; }
+.reading-part-head h2 { display: flex; align-items: center; gap: 8px; font-size: 1.0625rem; }
+.reading-part-head h2 svg { color: var(--course, var(--accent)); }
+.sheet.complete .source-head h3 { color: var(--muted); }
+.topic-tasks-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px 6px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.875rem; }
+.topic-tasks-head b { color: var(--text); font-weight: 600; }
+.topic-tasks-head svg { color: var(--course, var(--accent)); }
+.link-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.link-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px;
+  font-size: 0.71875rem; line-height: 1.5; white-space: nowrap; color: var(--muted);
+  background: var(--surface-2); border: 1px solid var(--border);
+  flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.link-chip svg { width: 11px; height: 11px; flex: none; }
+.link-chip.done { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+.sec .link-chips { flex: none; max-width: 45%; overflow: hidden; }
+.pick-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 4px; background: var(--surface); }
+.pick-book + .pick-book { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.pick-book-title { font-weight: 600; font-size: 0.8125rem; padding: 2px 8px 4px; color: var(--muted); }
+.pick-row { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 6px; cursor: pointer; font-weight: 400 !important; }
+.pick-row:hover { background: var(--surface-2); }
+.pick-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-chapter span { font-weight: 600; }
+.pick-section { padding-left: 30px; }
+.pick-empty { margin: 0; font-size: 0.875rem; }
 
 /* ---------- several accounts ---------- */
 .avatar {
